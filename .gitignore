@@ -1,0 +1,113 @@
+# Private key and certificate
+*.p12
+*.cer
+*.certSigningRequest
+*.key
+*.pem
+*.p8
+*.mobileprovision
+.env
+.env.*
+
+# md file upload rules
+/*.md
+!/README.md
+!/CHANGELOG.md
+!/CONTRIBUTING.md
+
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcworkspace/contents.xcworkspacedata
+*.xcworkspace/*
+!*.xcworkspace/xcshareddata/
+
+# Build products
+build/
+dist/
+DerivedData/
+*.app
+*.dmg
+*.zip
+*.xcarchive
+*.dSYM.zip
+*.dSYM
+*.log
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Accio
+Dependencies/
+.accio/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/
+
+# User settings
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+
+# Local agent/tooling state
+.agents/
+
+# Fork cleanup: keep the first public repo focused on app source.
+website/
+docs/*
+!docs/images/
+docs/images/*
+!docs/images/icon@2x.png
+!docs/images/AppIcon.icns
+!docs/images/DmgIcon.icns
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Thumbnails
+Thumbs.db
+
+# Files that might appear in the root
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Swift compiled files
+*.swiftmodule
+*.swiftdoc
+
+# Backup files
+*~
+*.bak
+*.backup
