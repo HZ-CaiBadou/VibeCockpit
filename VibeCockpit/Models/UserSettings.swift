@@ -155,9 +155,9 @@ enum LimitType: String, CaseIterable, Codable {
     case opusWeekly = "seven_day_opus"
     /// Sonnet 每周限制
     case sonnetWeekly = "seven_day_sonnet"
-    /// Codex 5小时窗口（primary）
+    /// Codex primary 窗口（实际时长由接口返回）
     case codexPrimary = "codex_primary"
-    /// Codex 7天窗口（secondary）
+    /// Codex secondary 窗口（实际时长由接口返回）
     case codexSecondary = "codex_secondary"
     /// Codex Extra Usage / credits
     case codexExtraUsage = "codex_extra_usage"
@@ -172,7 +172,7 @@ enum LimitType: String, CaseIterable, Codable {
         }
     }
 
-    /// 是否为圆形图标（5小时、7天和 Codex 两项）
+    /// 是否为圆形图标（Claude 短期/长期窗口和 Codex 两个动态窗口）
     var isCircular: Bool {
         return self == .fiveHour || self == .sevenDay || self == .codexPrimary || self == .codexSecondary
     }
@@ -641,7 +641,7 @@ class UserSettings: ObservableObject {
         }
     }
 
-    /// 调试用的 Codex 5小时窗口百分比（0-100）
+    /// 调试用的 Codex primary 窗口百分比（0-100）
     @Published var debugCodexPrimaryPercentage: Double {
         didSet {
             defaults.set(debugCodexPrimaryPercentage, forKey: "debugCodexPrimaryPercentage")
@@ -649,7 +649,7 @@ class UserSettings: ObservableObject {
         }
     }
 
-    /// 调试用的 Codex 7天窗口百分比（0-100）
+    /// 调试用的 Codex secondary 窗口百分比（0-100）
     @Published var debugCodexSecondaryPercentage: Double {
         didSet {
             defaults.set(debugCodexSecondaryPercentage, forKey: "debugCodexSecondaryPercentage")
@@ -933,12 +933,12 @@ class UserSettings: ObservableObject {
             self.displayMode = .smart
         }
 
-        // Codex-only 版本默认只显示 Codex 的 5 小时和 7 天限制
+        // Codex 窗口由接口动态返回；新安装默认选 secondary，缺失的窗口不会渲染占位项。
         if let rawValues = defaults.array(forKey: "customDisplayTypes") as? [String] {
             let codexTypes = Set(rawValues.compactMap { LimitType(rawValue: $0) }.filter { $0.provider == .codex })
-            self.customDisplayTypes = codexTypes.isEmpty ? [.codexPrimary, .codexSecondary] : codexTypes
+            self.customDisplayTypes = codexTypes.isEmpty ? [.codexSecondary] : codexTypes
         } else {
-            self.customDisplayTypes = [.codexPrimary, .codexSecondary]
+            self.customDisplayTypes = [.codexSecondary]
         }
 
         // 加载"自定义显示仅应用于菜单栏"开关，默认关闭（保持向后兼容）
@@ -1077,7 +1077,7 @@ class UserSettings: ObservableObject {
         language = Self.detectSystemLanguage()
         timeFormatPreference = .system
         displayMode = .smart
-        customDisplayTypes = [.codexPrimary, .codexSecondary]
+        customDisplayTypes = [.codexSecondary]
         customDisplayMenuBarOnly = false
         notificationsEnabled = true
 
@@ -1308,6 +1308,10 @@ class UserSettings: ObservableObject {
             codexAccounts[index].sessionKey = account.sessionKey
             codexAccounts[index].organizationId = account.organizationId
             codexAccounts[index].organizationName = account.organizationName
+            if let remoteAccountId = account.remoteAccountId?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !remoteAccountId.isEmpty {
+                codexAccounts[index].remoteAccountId = remoteAccountId
+            }
             codexAccounts[index].provider = .codex
             if currentCodexAccountId == nil {
                 currentCodexAccountId = codexAccounts[index].id
@@ -1369,6 +1373,18 @@ class UserSettings: ObservableObject {
         Logger.settings.notice("Codex session-token 已静默更新（自动续期）")
     }
 
+    /// 静默更新当前 Codex 账号的 ChatGPT 账号 ID。
+    /// 该值只用于请求头中的账号路由，不应触发账户切换或重复刷新。
+    func silentlyUpdateCurrentCodexRemoteAccountId(_ remoteAccountId: String) {
+        let normalized = remoteAccountId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty,
+              let id = currentCodexAccountId,
+              let index = codexAccounts.firstIndex(where: { $0.id == id }),
+              codexAccounts[index].remoteAccountId != normalized else { return }
+        codexAccounts[index].remoteAccountId = normalized
+        Logger.settings.notice("Codex ChatGPT account ID 已静默更新")
+    }
+
     /// 静默更新当前 Claude 账户的 session-token（不触发 accountChanged 通知）
     /// 用于 OAuth refresh_token 轮换场景——只更新持久化数据，不触发重新拉取循环
     func silentlyUpdateCurrentClaudeSessionToken(_ token: String) {
@@ -1392,7 +1408,7 @@ class UserSettings: ObservableObject {
         guard displayMode == .custom else { return }
         let codexTypes: Set<LimitType> = [.codexPrimary, .codexSecondary, .codexExtraUsage]
         guard customDisplayTypes.isDisjoint(with: codexTypes) else { return }
-        customDisplayTypes.formUnion([.codexPrimary, .codexSecondary])
+        customDisplayTypes.insert(.codexSecondary)
     }
 
     // MARK: - Organization Management (保留向后兼容)
@@ -1525,9 +1541,11 @@ class UserSettings: ObservableObject {
             // 智能模式：显示所有有数据的类型
             var types: [LimitType] = []
 
-            // Codex-only 版本只显示 Codex 类型
+            // Codex 的窗口数量和时长取决于当前套餐；只展示接口实际返回的窗口。
             if let codex = codexUsageData {
-                types.append(.codexPrimary)
+                if codex.primary != nil {
+                    types.append(.codexPrimary)
+                }
                 if codex.secondary != nil {
                     types.append(.codexSecondary)
                 }
@@ -1540,7 +1558,20 @@ class UserSettings: ObservableObject {
 
         case .custom:
             let orderedTypes: [LimitType] = [.codexPrimary, .codexSecondary, .codexExtraUsage]
-            return orderedTypes.filter { customDisplayTypes.contains($0) }
+            guard let codex = codexUsageData else { return [] }
+            return orderedTypes.filter { type in
+                guard customDisplayTypes.contains(type) else { return false }
+                switch type {
+                case .codexPrimary:
+                    return codex.primary != nil
+                case .codexSecondary:
+                    return codex.secondary != nil
+                case .codexExtraUsage:
+                    return codex.extraUsage?.enabled == true
+                default:
+                    return false
+                }
+            }
         }
     }
 

@@ -36,14 +36,11 @@ struct CodexColumnView: View {
     }
 
     private var primaryRingData: CodexUsageData.LimitData? {
-        let placeholder = CodexUsageData.LimitData(percentage: 0, resetsAt: nil)
-        let showPlaceholder = UserSettings.shared.shouldShowCustomPlaceholderInPopover
-
         switch primaryRingType {
         case .codexPrimary:
-            return codexUsageData.primary ?? (showPlaceholder ? placeholder : nil)
+            return codexUsageData.primary
         case .codexSecondary:
-            return codexUsageData.secondary ?? (showPlaceholder ? placeholder : nil)
+            return codexUsageData.secondary
         default:
             return nil
         }

@@ -239,8 +239,8 @@
 "opus_weekly_limit" = "7일 Opus 제한";
 "sonnet_weekly_limit" = "7일 Sonnet 제한";
 "extra_usage" = "추가 사용량";
-"codex_primary_limit" = "Codex 5시간 제한";
-"codex_secondary_limit" = "Codex 7일 제한";
+"codex_primary_limit" = "Codex 기본 한도 창";
+"codex_secondary_limit" = "Codex 보조 한도 창";
 "codex_extra_usage" = "Codex 추가 사용량";
 
 // MARK: - Detail Row Labels

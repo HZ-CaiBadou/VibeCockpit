@@ -195,21 +195,18 @@ class MenuBarIconRenderer {
 
     /// 构建 Codex 指标图标列表
     private func buildCodexIcons(codex: CodexUsageData, types: [LimitType], isMonochrome: Bool, button: NSStatusBarButton?) -> [NSImage] {
-        let showPlaceholder = settings.displayMode == .custom
         return types.compactMap { type -> NSImage? in
             switch type {
             case .codexPrimary:
-                let percentage = codex.primary?.percentage ?? (showPlaceholder ? 0 : nil)
+                let percentage = codex.primary?.percentage
                 return percentage.flatMap { createCodexIcon(type: type, percentage: $0, isMonochrome: isMonochrome, button: button) }
             case .codexSecondary:
-                let percentage = codex.secondary?.percentage ?? (showPlaceholder ? 0 : nil)
+                let percentage = codex.secondary?.percentage
                 return percentage.flatMap { createCodexIcon(type: type, percentage: $0, isMonochrome: isMonochrome, button: button) }
             case .codexExtraUsage:
                 let percentage: Double?
                 if let extra = codex.extraUsage, extra.enabled {
                     percentage = extra.percentage
-                } else if showPlaceholder {
-                    percentage = 0
                 } else {
                     percentage = nil
                 }

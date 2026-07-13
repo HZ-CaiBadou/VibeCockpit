@@ -239,8 +239,8 @@
 "opus_weekly_limit" = "Limite Opus 7j";
 "sonnet_weekly_limit" = "Limite Sonnet 7j";
 "extra_usage" = "Utilisation supplémentaire";
-"codex_primary_limit" = "Limite Codex 5 heures";
-"codex_secondary_limit" = "Limite Codex 7 jours";
+"codex_primary_limit" = "Fenêtre principale Codex";
+"codex_secondary_limit" = "Fenêtre secondaire Codex";
 "codex_extra_usage" = "Utilisation supplémentaire Codex";
 
 // MARK: - Detail Row Labels

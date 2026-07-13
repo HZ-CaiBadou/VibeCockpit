@@ -43,9 +43,11 @@ class CodexAPIHeaderBuilder {
     // MARK: - Usage 端点 Headers（Bearer Token 认证）
 
     /// 构建 /backend-api/wham/usage 请求的 Headers
-    /// - Parameter accessToken: 从 /api/auth/session 获取的 Bearer token
-    static func buildUsageHeaders(accessToken: String) -> [String: String] {
-        return [
+    /// - Parameters:
+    ///   - accessToken: 从 /api/auth/session 获取的 Bearer token
+    ///   - accountId: OAuth token 中的 ChatGPT account ID；多账号场景下必须优先携带
+    static func buildUsageHeaders(accessToken: String, accountId: String? = nil) -> [String: String] {
+        var headers = [
             "accept": "*/*",
             "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
             "content-type": "application/json",
@@ -57,11 +59,15 @@ class CodexAPIHeaderBuilder {
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-origin"
         ]
+        if let accountId = accountId?.trimmingCharacters(in: .whitespacesAndNewlines), !accountId.isEmpty {
+            headers["ChatGPT-Account-Id"] = accountId
+        }
+        return headers
     }
 
     /// 为 URLRequest 应用 Usage 端点 Headers
-    static func applyUsageHeaders(to request: inout URLRequest, accessToken: String) {
-        let headers = buildUsageHeaders(accessToken: accessToken)
+    static func applyUsageHeaders(to request: inout URLRequest, accessToken: String, accountId: String? = nil) {
+        let headers = buildUsageHeaders(accessToken: accessToken, accountId: accountId)
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }

@@ -12,9 +12,9 @@ import Foundation
 
 /// Codex 使用量数据（应用内部使用的标准化结构）
 struct CodexUsageData: Sendable {
-    /// 5小时窗口用量（primary）
+    /// API 返回的 primary 配额窗口。窗口长度由 `windowSeconds` 决定，不假设为 5 小时。
     let primary: LimitData?
-    /// 7天窗口用量（secondary）
+    /// API 返回的 secondary 配额窗口。窗口长度由 `windowSeconds` 决定，不假设为 7 天。
     let secondary: LimitData?
     /// Codex Extra Usage / credits 数据
     let extraUsage: CodexExtraUsageData?
@@ -24,13 +24,34 @@ struct CodexUsageData: Sendable {
         let percentage: Double
         /// 重置时间，nil 表示尚未开始使用
         let resetsAt: Date?
+        /// API 返回的实际窗口时长；缺失时仅展示为通用窗口，不伪造 5 小时标签。
+        let windowSeconds: Int?
+
+        init(percentage: Double, resetsAt: Date?, windowSeconds: Int? = nil) {
+            self.percentage = percentage
+            self.resetsAt = resetsAt
+            self.windowSeconds = windowSeconds
+        }
+
+        /// 紧凑的真实窗口标签，例如 `7d`、`5h`。接口未提供时返回 nil，交由 UI 使用通用名称。
+        var compactWindowLabel: String? {
+            guard let windowSeconds, windowSeconds > 0 else { return nil }
+            let minutes = max(1, Int((Double(windowSeconds) / 60).rounded(.up)))
+            if minutes % (24 * 60) == 0 {
+                return "\(minutes / (24 * 60))d"
+            }
+            if minutes % 60 == 0 {
+                return "\(minutes / 60)h"
+            }
+            return "\(minutes)m"
+        }
     }
 }
 
 // MARK: - API 响应模型
 
 /// Codex /backend-api/wham/usage 响应模型
-nonisolated struct CodexUsageResponse: Codable, Sendable {
+nonisolated struct CodexUsageResponse: Decodable, Sendable {
     let account_id: String?
     let email: String?
     let plan_type: String?
@@ -38,14 +59,14 @@ nonisolated struct CodexUsageResponse: Codable, Sendable {
     let credits: Credits?
     let spend_control: SpendControl?
 
-    struct RateLimit: Codable, Sendable {
+    struct RateLimit: Decodable, Sendable {
         let allowed: Bool?
         let limit_reached: Bool?
         let primary_window: Window?
         let secondary_window: Window?
     }
 
-    struct Window: Codable, Sendable {
+    struct Window: Decodable, Sendable {
         /// 使用百分比 (0-100)
         let used_percent: Double
         /// 窗口时长（秒）：18000 = 5小时，604800 = 7天
@@ -54,9 +75,26 @@ nonisolated struct CodexUsageResponse: Codable, Sendable {
         let reset_after_seconds: Int?
         /// 重置时间（Unix 时间戳，与 Claude 的 ISO 8601 不同）
         let reset_at: Int?
+
+        private enum CodingKeys: String, CodingKey {
+            case used_percent
+            case limit_window_seconds
+            case reset_after_seconds
+            case reset_at
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            // OpenAI 的未公开接口偶尔会返回整数、浮点数或 null。单个窗口字段异常时，
+            // 不应导致整份用量响应解码失败。
+            used_percent = container.decodeLossyDouble(forKey: .used_percent) ?? 0
+            limit_window_seconds = container.decodeLossyInt(forKey: .limit_window_seconds)
+            reset_after_seconds = container.decodeLossyInt(forKey: .reset_after_seconds)
+            reset_at = container.decodeLossyInt(forKey: .reset_at)
+        }
     }
 
-    struct Credits: Codable, Sendable {
+    struct Credits: Decodable, Sendable {
         let has_credits: Bool?
         let unlimited: Bool?
         let overage_limit_reached: Bool?
@@ -109,8 +147,33 @@ nonisolated struct CodexUsageResponse: Codable, Sendable {
         }
     }
 
-    struct SpendControl: Codable, Sendable {
+    struct SpendControl: Decodable, Sendable {
         let reached: Bool?
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case account_id
+        case email
+        case plan_type
+        case rate_limit
+        case credits
+        case spend_control
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // 统计字段与付费 credits 独立于配额窗口；其中任一字段变更不应让基础用量消失。
+        func decodeLenient<T: Decodable>(_ type: T.Type, forKey key: CodingKeys) -> T? {
+            try? container.decodeIfPresent(T.self, forKey: key)
+        }
+
+        account_id = decodeLenient(String.self, forKey: .account_id)
+        email = decodeLenient(String.self, forKey: .email)
+        plan_type = decodeLenient(String.self, forKey: .plan_type)
+        rate_limit = decodeLenient(RateLimit.self, forKey: .rate_limit)
+        credits = decodeLenient(Credits.self, forKey: .credits)
+        spend_control = decodeLenient(SpendControl.self, forKey: .spend_control)
     }
 
     /// 将 API 响应转换为内部 CodexUsageData
@@ -118,10 +181,10 @@ nonisolated struct CodexUsageResponse: Codable, Sendable {
         let now = Date()
 
         func resolvedResetDate(for window: Window) -> Date? {
-            if let resetAt = window.reset_at {
+            if let resetAt = window.reset_at, resetAt > 0 {
                 return Date(timeIntervalSince1970: TimeInterval(resetAt))
             }
-            if let resetAfterSeconds = window.reset_after_seconds {
+            if let resetAfterSeconds = window.reset_after_seconds, resetAfterSeconds >= 0 {
                 return now.addingTimeInterval(TimeInterval(resetAfterSeconds))
             }
             return nil
@@ -130,15 +193,21 @@ nonisolated struct CodexUsageResponse: Codable, Sendable {
         let primary: CodexUsageData.LimitData? = {
             guard let w = rate_limit?.primary_window else { return nil }
             let resetsAt = resolvedResetDate(for: w)
-            return .init(percentage: w.used_percent, resetsAt: resetsAt)
+            return .init(
+                percentage: w.used_percent.clamped(to: 0...100),
+                resetsAt: resetsAt,
+                windowSeconds: w.limit_window_seconds
+            )
         }()
 
         let secondary: CodexUsageData.LimitData? = {
             guard let w = rate_limit?.secondary_window else { return nil }
-            // 如果 used_percent 为 0 且无重置信息，视为无效数据
-            if w.used_percent == 0 && w.reset_at == nil && w.reset_after_seconds == nil { return nil }
             let resetsAt = resolvedResetDate(for: w)
-            return .init(percentage: w.used_percent, resetsAt: resetsAt)
+            return .init(
+                percentage: w.used_percent.clamped(to: 0...100),
+                resetsAt: resetsAt,
+                windowSeconds: w.limit_window_seconds
+            )
         }()
 
         let extraUsage = credits.map {
@@ -154,6 +223,32 @@ nonisolated struct CodexUsageResponse: Codable, Sendable {
         }
 
         return CodexUsageData(primary: primary, secondary: secondary, extraUsage: extraUsage)
+    }
+}
+
+private extension KeyedDecodingContainer {
+    func decodeLossyDouble(forKey key: Key) -> Double? {
+        if let value = try? decodeIfPresent(Double.self, forKey: key) { return value }
+        if let value = try? decodeIfPresent(Int.self, forKey: key) { return Double(value) }
+        if let value = try? decodeIfPresent(String.self, forKey: key) {
+            return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
+    }
+
+    func decodeLossyInt(forKey key: Key) -> Int? {
+        if let value = try? decodeIfPresent(Int.self, forKey: key) { return value }
+        if let value = try? decodeIfPresent(Double.self, forKey: key) { return Int(value) }
+        if let value = try? decodeIfPresent(String.self, forKey: key) {
+            return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
+    }
+}
+
+private extension Double {
+    func clamped(to range: ClosedRange<Double>) -> Double {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }
 
@@ -209,47 +304,7 @@ nonisolated struct CodexExtraUsageData: Sendable {
         return nil
     }
 
-    @MainActor var formattedCompactAmount: String {
-        if unlimited {
-            return L.ExtraUsage.unlimited
-        }
-        if overageLimitReached || spendControlReached {
-            return L.ExtraUsage.limitReached
-        }
-        guard enabled, let balanceValue else {
-            return L.ExtraUsage.notEnabled
-        }
-        return L.ExtraUsage.creditsBalance(balanceValue)
-    }
-
-    @MainActor var formattedRemainingAmount: String {
-        guard let balanceValue else {
-            return formattedCompactAmount
-        }
-        return L.ExtraUsage.creditsRemaining(balanceValue)
-    }
-
-    @MainActor var formattedDetailCompactAmount: String {
-        if unlimited {
-            return L.ExtraUsage.unlimited
-        }
-        if overageLimitReached || spendControlReached {
-            return L.ExtraUsage.limitReached
-        }
-        guard enabled, let balanceValue else {
-            return L.ExtraUsage.notEnabled
-        }
-        return L.DetailRow.creditsBalance(balanceValue)
-    }
-
-    @MainActor var formattedDetailRemainingAmount: String {
-        guard let balanceValue else {
-            return formattedDetailCompactAmount
-        }
-        return L.DetailRow.creditsRemaining(balanceValue)
-    }
-
-    private var balanceValue: Double? {
+    var balanceValue: Double? {
         guard let balance else { return nil }
         return NSDecimalNumber(decimal: balance).doubleValue
     }

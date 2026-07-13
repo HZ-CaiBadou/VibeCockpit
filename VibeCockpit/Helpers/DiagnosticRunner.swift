@@ -390,7 +390,11 @@ final class CodexDiagnosticRunner: DiagnosticRunner {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 30
-        CodexAPIHeaderBuilder.applyUsageHeaders(to: &request, accessToken: accessToken)
+        CodexAPIHeaderBuilder.applyUsageHeaders(
+            to: &request,
+            accessToken: accessToken,
+            accountId: UserSettings.shared.currentCodexAccount?.remoteAccountId
+        )
 
         let startTime = Date()
         let session = URLSession(configuration: .default)

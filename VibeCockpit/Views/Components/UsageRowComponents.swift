@@ -241,10 +241,14 @@ struct UnifiedLimitRow: View {
 
     private var limitName: String {
         switch type {
-        case .fiveHour, .codexPrimary:
+        case .fiveHour:
             return L.DetailRow.fiveHour
-        case .sevenDay, .codexSecondary:
+        case .sevenDay:
             return L.DetailRow.sevenDay
+        case .codexPrimary:
+            return codexData?.primary?.compactWindowLabel.map { "Codex \($0)" } ?? L.LimitTypes.codexPrimary
+        case .codexSecondary:
+            return codexData?.secondary?.compactWindowLabel.map { "Codex \($0)" } ?? L.LimitTypes.codexSecondary
         case .opusWeekly:
             return L.DetailRow.opusWeekly
         case .sonnetWeekly:

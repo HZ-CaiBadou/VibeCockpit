@@ -134,6 +134,7 @@ class DataRefreshManager: ObservableObject {
 
         let fetchClaude = shouldFetchClaudeUsage
         let fetchCodex = shouldFetchCodexUsage
+        let requestedCodexAccountId = settings.currentCodexAccountId
 
         if !fetchClaude {
             clearClaudeUsageState()
@@ -180,7 +181,7 @@ class DataRefreshManager: ObservableObject {
             self.endRefreshAnimationWithMinimumDuration { }
 
             var monitoringUtilizations: [ProviderType: Double] = [:]
-            if fetchCodex {
+            if fetchCodex, self.settings.currentCodexAccountId == requestedCodexAccountId {
                 switch codexResult {
                 case .success(let codex):
                     if let utilization = self.monitoringUtilization(for: codex) {
@@ -192,15 +193,18 @@ class DataRefreshManager: ObservableObject {
                     if case UsageError.unauthorized = error {
                         self.attemptTokenRefreshAndRetry()
                     } else {
-                        self.codexErrorMessage = error.localizedDescription
-                        self.clearCodexUsageState(clearError: false)
+                        self.recordCodexFailure(error)
                     }
 
                 case .none:
                     self.clearCodexUsageState()
                 }
             } else {
-                self.clearCodexUsageState()
+                if !fetchCodex {
+                    self.clearCodexUsageState()
+                } else {
+                    Logger.menuBar.debug("丢弃已切换账号前的 Codex 用量响应")
+                }
             }
 
             // 处理 Claude 结果
@@ -252,6 +256,16 @@ class DataRefreshManager: ObservableObject {
         }
         lastCodexResetsAt = nil
         cancelCodexResetVerification()
+    }
+
+    /// 传输或上游短暂失败时保留最近一次成功数据，避免菜单栏和 Popover 在下一次刷新前闪成空白。
+    private func recordCodexFailure(_ error: Error) {
+        codexErrorMessage = error.localizedDescription
+        if codexUsageData != nil {
+            Logger.menuBar.warning("Codex 请求失败，保留最近一次成功用量: \(error.localizedDescription)")
+        } else {
+            clearCodexWakeupUsage()
+        }
     }
 
     private func startCodexWakeup() {
@@ -551,10 +565,15 @@ class DataRefreshManager: ObservableObject {
         isLoading = true
         codexErrorMessage = nil
         lastAPIFetchTime = Date()
+        let requestedCodexAccountId = settings.currentCodexAccountId
 
         codexApiService.fetchUsage { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
+                guard self.settings.currentCodexAccountId == requestedCodexAccountId else {
+                    Logger.menuBar.debug("丢弃已切换账号前的 Codex 单独刷新响应")
+                    return
+                }
                 self.isLoading = false
                 self.endRefreshAnimationWithMinimumDuration { }
 
@@ -567,8 +586,7 @@ class DataRefreshManager: ObservableObject {
                         self.codexApiService.clearAccessTokenCache()
                         self.attemptTokenRefreshAndRetry()
                     } else {
-                        self.codexErrorMessage = error.localizedDescription
-                        self.clearCodexUsageState(clearError: false)
+                        self.recordCodexFailure(error)
                         Logger.menuBar.info("Codex 请求失败: \(error.localizedDescription)")
                     }
                 }
@@ -587,7 +605,10 @@ class DataRefreshManager: ObservableObject {
         if settings.notificationsEnabled {
             NotificationManager.shared.checkAndNotify(codexUsageData: data, previousData: previousCodexData)
         }
-        let newCodexResetsAt = data.primary?.resetsAt
+        // Codex 不再保证 primary_window 存在；以实际返回窗口中最近的重置时间安排验证。
+        let newCodexResetsAt = [data.primary?.resetsAt, data.secondary?.resetsAt]
+            .compactMap { $0 }
+            .min()
         if hasResetTimeChanged(from: lastCodexResetsAt, to: newCodexResetsAt) {
             cancelCodexResetVerification()
         } else if let resetsAt = newCodexResetsAt {
@@ -656,9 +677,14 @@ class DataRefreshManager: ObservableObject {
     /// 用新鲜 accessToken 直接查询用量（跳过 session 步骤）
     private func retryCodexWithAccessToken(_ accessToken: String) {
         isLoading = true
+        let requestedCodexAccountId = settings.currentCodexAccountId
         codexApiService.fetchUsageWithAccessToken(accessToken) { [weak self] usageResult in
             DispatchQueue.main.async {
                 guard let self else { return }
+                guard self.settings.currentCodexAccountId == requestedCodexAccountId else {
+                    Logger.menuBar.debug("丢弃已切换账号前的 Codex token 重试响应")
+                    return
+                }
                 self.isLoading = false
                 self.endRefreshAnimationWithMinimumDuration { }
                 switch usageResult {

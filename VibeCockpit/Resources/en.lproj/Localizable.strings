@@ -240,8 +240,8 @@
 "opus_weekly_limit" = "7D Opus Limit";
 "sonnet_weekly_limit" = "7D Sonnet Limit";
 "extra_usage" = "Extra Usage";
-"codex_primary_limit" = "Codex 5-Hour Limit";
-"codex_secondary_limit" = "Codex 7-Day Limit";
+"codex_primary_limit" = "Codex Primary Window";
+"codex_secondary_limit" = "Codex Secondary Window";
 "codex_extra_usage" = "Codex Extra Usage";
 
 // MARK: - Detail Row Labels

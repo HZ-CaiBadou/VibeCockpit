@@ -504,10 +504,10 @@ struct GeneralSettingsView: View {
                                     .fontWeight(.semibold)
                                     .foregroundColor(.secondary)
 
-                                // Codex 5小时窗口
+                                // Codex primary 窗口
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text("Codex 5小时百分比：")
+                                        Text("Codex primary 百分比：")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         Spacer()
@@ -520,10 +520,10 @@ struct GeneralSettingsView: View {
                                         .tint(Color(red: 45/255.0, green: 212/255.0, blue: 191/255.0))
                                 }
 
-                                // Codex 7天窗口
+                                // Codex secondary 窗口
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text("Codex 7天百分比：")
+                                        Text("Codex secondary 百分比：")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         Spacer()

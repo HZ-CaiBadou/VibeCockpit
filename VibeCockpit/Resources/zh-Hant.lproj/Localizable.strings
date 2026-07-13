@@ -239,8 +239,8 @@
 "opus_weekly_limit" = "7天Opus限制";
 "sonnet_weekly_limit" = "7天Sonnet限制";
 "extra_usage" = "額外用量";
-"codex_primary_limit" = "Codex 5小時限制";
-"codex_secondary_limit" = "Codex 7天限制";
+"codex_primary_limit" = "Codex 主要配額視窗";
+"codex_secondary_limit" = "Codex 次要配額視窗";
 "codex_extra_usage" = "Codex 額外用量";
 
 // MARK: - Detail Row Labels

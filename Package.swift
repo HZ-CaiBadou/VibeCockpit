@@ -26,13 +26,14 @@ let package = Package(
             path: "VibeCockpit/Models",
             exclude: [
                 "Account.swift",
-                "CodexUsageData.swift",
+                "CodexExtraUsageData+Formatting.swift",
                 "DiagnosticReport.swift",
                 "ProviderType.swift",
                 "UserSettings.swift"
             ],
             sources: [
                 "ClaudeAPIResponseModels.swift",
+                "CodexUsageData.swift",
                 "CodexWakeupCore.swift",
                 "UsageDisplayMath.swift"
             ]

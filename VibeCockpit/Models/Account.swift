@@ -13,6 +13,10 @@ struct Account: Codable, Identifiable, Equatable {
     var sessionKey: String
     var organizationId: String
     var organizationName: String
+    /// Codex OAuth access token 中的 ChatGPT 账号 ID。
+    ///
+    /// Codex 的用量接口会用它区分同一登录态下的不同账号；Claude 账号保持为 nil。
+    var remoteAccountId: String?
     var alias: String?
     let createdAt: Date
     var provider: ProviderType
@@ -27,7 +31,7 @@ struct Account: Codable, Identifiable, Equatable {
     // MARK: - CodingKeys
 
     private enum CodingKeys: String, CodingKey {
-        case id, sessionKey, organizationId, organizationName, alias, createdAt, provider
+        case id, sessionKey, organizationId, organizationName, remoteAccountId, alias, createdAt, provider
     }
 
     // MARK: - Codable
@@ -39,6 +43,7 @@ struct Account: Codable, Identifiable, Equatable {
         sessionKey = try container.decode(String.self, forKey: .sessionKey)
         organizationId = try container.decode(String.self, forKey: .organizationId)
         organizationName = try container.decode(String.self, forKey: .organizationName)
+        remoteAccountId = try container.decodeIfPresent(String.self, forKey: .remoteAccountId)
         alias = try container.decodeIfPresent(String.self, forKey: .alias)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         provider = try container.decodeIfPresent(ProviderType.self, forKey: .provider) ?? .claude
@@ -50,6 +55,7 @@ struct Account: Codable, Identifiable, Equatable {
         sessionKey: String,
         organizationId: String,
         organizationName: String,
+        remoteAccountId: String? = nil,
         alias: String? = nil,
         provider: ProviderType = .claude
     ) {
@@ -57,6 +63,7 @@ struct Account: Codable, Identifiable, Equatable {
         self.sessionKey = sessionKey
         self.organizationId = organizationId
         self.organizationName = organizationName
+        self.remoteAccountId = remoteAccountId
         self.alias = alias
         self.createdAt = Date()
         self.provider = provider
@@ -67,6 +74,7 @@ struct Account: Codable, Identifiable, Equatable {
         sessionKey: String,
         organizationId: String,
         organizationName: String,
+        remoteAccountId: String? = nil,
         alias: String?,
         createdAt: Date,
         provider: ProviderType = .claude
@@ -75,6 +83,7 @@ struct Account: Codable, Identifiable, Equatable {
         self.sessionKey = sessionKey
         self.organizationId = organizationId
         self.organizationName = organizationName
+        self.remoteAccountId = remoteAccountId
         self.alias = alias
         self.createdAt = createdAt
         self.provider = provider

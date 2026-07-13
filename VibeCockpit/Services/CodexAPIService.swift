@@ -21,8 +21,9 @@ class CodexAPIService {
     private let settings = UserSettings.shared
     private let session: URLSession
 
-    /// 当前进行中的任务（最多两个：session + usage）
-    private var activeTasks: [URLSessionDataTask] = []
+    /// 同一份凭据的并发刷新合并为一次请求，避免定时刷新、打开面板和手动刷新互相取消。
+    private let usageFetchLock = NSLock()
+    private var usageFetchWaiters: [String: [(Result<CodexUsageData, Error>) -> Void]] = [:]
 
     // MARK: - Access Token Cache
 
@@ -103,27 +104,57 @@ class CodexAPIService {
         }
         #endif
 
-        cancelAllRequests()
-
         guard settings.hasValidCodexCredentials else {
             completion(.failure(UsageError.noCredentials))
             return
         }
 
         let sessionToken = settings.codexSessionToken
+        let accountId = settings.currentCodexAccount?.remoteAccountId
+        guard beginUsageFetch(for: sessionToken, completion: completion) else {
+            Logger.api.debug("Codex usage: 合并同账号的并发刷新")
+            return
+        }
 
         CodexAuthService.shared.fetchAccessToken(sessionToken: sessionToken) { [weak self] result in
             guard let self = self else { return }
 
             switch result {
             case .failure(let error):
-                DispatchQueue.main.async { completion(.failure(error)) }
+                self.finishUsageFetch(for: sessionToken, result: .failure(error))
 
             case .success(let accessToken):
-                self.fetchWhamUsage(accessToken: accessToken) { usageResult in
-                    DispatchQueue.main.async { completion(usageResult) }
+                self.fetchWhamUsage(accessToken: accessToken, accountId: accountId) { usageResult in
+                    self.finishUsageFetch(for: sessionToken, result: usageResult)
                 }
             }
+        }
+    }
+
+    /// 返回 false 表示已有相同凭据的请求在飞行中，调用方已加入等待队列。
+    private func beginUsageFetch(
+        for credential: String,
+        completion: @escaping (Result<CodexUsageData, Error>) -> Void
+    ) -> Bool {
+        usageFetchLock.lock()
+        defer { usageFetchLock.unlock() }
+
+        if usageFetchWaiters[credential] != nil {
+            usageFetchWaiters[credential, default: []].append(completion)
+            return false
+        }
+
+        usageFetchWaiters[credential] = [completion]
+        return true
+    }
+
+    private func finishUsageFetch(for credential: String, result: Result<CodexUsageData, Error>) {
+        usageFetchLock.lock()
+        let waiters = usageFetchWaiters.removeValue(forKey: credential) ?? []
+        usageFetchLock.unlock()
+
+        DispatchQueue.main.async {
+            waiters.forEach { $0(result) }
         }
     }
 
@@ -264,7 +295,6 @@ class CodexAPIService {
             }
         }
 
-        activeTasks.append(task)
         task.resume()
     }
 
@@ -342,7 +372,8 @@ class CodexAPIService {
 
     /// 跳过 session 步骤，直接用已获取的 accessToken 查询用量（用于刷新后重试）
     func fetchUsageWithAccessToken(_ accessToken: String, completion: @escaping (Result<CodexUsageData, Error>) -> Void) {
-        fetchWhamUsage(accessToken: accessToken) { result in
+        let accountId = settings.currentCodexAccount?.remoteAccountId
+        fetchWhamUsage(accessToken: accessToken, accountId: accountId) { result in
             DispatchQueue.main.async { completion(result) }
         }
     }
@@ -350,7 +381,12 @@ class CodexAPIService {
     // MARK: - Private: Step 2 — accessToken → usage
 
     /// 第二步：用 Bearer accessToken 查询用量
-    private func fetchWhamUsage(accessToken: String, completion: @escaping (Result<CodexUsageData, Error>) -> Void) {
+    private func fetchWhamUsage(
+        accessToken: String,
+        accountId: String? = nil,
+        attempt: Int = 0,
+        completion: @escaping (Result<CodexUsageData, Error>) -> Void
+    ) {
         guard let url = URL(string: "\(baseURL)/backend-api/wham/usage") else {
             completion(.failure(UsageError.invalidURL))
             return
@@ -359,12 +395,24 @@ class CodexAPIService {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.assumesHTTP3Capable = false
-        CodexAPIHeaderBuilder.applyUsageHeaders(to: &request, accessToken: accessToken)
+        let resolvedAccountId = accountId ?? chatGPTAccountId(from: accessToken)
+        CodexAPIHeaderBuilder.applyUsageHeaders(
+            to: &request,
+            accessToken: accessToken,
+            accountId: resolvedAccountId
+        )
 
-        let task = session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else { return }
             if let error = error {
                 Logger.api.debug("Codex usage error: \(error.localizedDescription)")
-                completion(.failure(UsageError.networkError))
+                self.retryWhamUsageIfNeeded(
+                    accessToken: accessToken,
+                    accountId: accountId,
+                    attempt: attempt,
+                    error: .networkError,
+                    completion: completion
+                )
                 return
             }
 
@@ -388,6 +436,15 @@ class CodexAPIService {
                 case 401: completion(.failure(UsageError.unauthorized)); return
                 case 403: completion(.failure(UsageError.cloudflareBlocked)); return
                 case 429: completion(.failure(UsageError.rateLimited)); return
+                case 500...599:
+                    self.retryWhamUsageIfNeeded(
+                        accessToken: accessToken,
+                        accountId: accountId,
+                        attempt: attempt,
+                        error: .httpError(statusCode: httpResponse.statusCode),
+                        completion: completion
+                    )
+                    return
                 default:
                     completion(.failure(UsageError.httpError(statusCode: httpResponse.statusCode)))
                     return
@@ -405,8 +462,32 @@ class CodexAPIService {
             }
         }
 
-        activeTasks.append(task)
         task.resume()
+    }
+
+    private func retryWhamUsageIfNeeded(
+        accessToken: String,
+        accountId: String?,
+        attempt: Int,
+        error: UsageError,
+        completion: @escaping (Result<CodexUsageData, Error>) -> Void
+    ) {
+        // 短暂网络中断或上游 5xx 时重试一次；401/403/429 仍立即交给登录与限流逻辑处理。
+        guard attempt < 1 else {
+            completion(.failure(error))
+            return
+        }
+
+        let delay = TimeInterval(attempt + 1)
+        Logger.api.info("Codex usage: \(error.localizedDescription)，\(Int(delay)) 秒后重试")
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.fetchWhamUsage(
+                accessToken: accessToken,
+                accountId: accountId,
+                attempt: attempt + 1,
+                completion: completion
+            )
+        }
     }
 
     // MARK: - Validation (used by WebLoginCoordinator)
@@ -487,7 +568,6 @@ class CodexAPIService {
             }
         }
 
-        activeTasks.append(task)
         task.resume()
     }
 
@@ -525,12 +605,30 @@ func jwtExpiry(from token: String) -> Date? {
     let parts = token.split(separator: ".", omittingEmptySubsequences: false)
     guard parts.count == 3 else { return nil }
     var base64 = String(parts[1])
+        .replacingOccurrences(of: "-", with: "+")
+        .replacingOccurrences(of: "_", with: "/")
     let remainder = base64.count % 4
     if remainder != 0 { base64 += String(repeating: "=", count: 4 - remainder) }
     guard let data = Data(base64Encoded: base64),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let exp = json["exp"] as? TimeInterval else { return nil }
     return Date(timeIntervalSince1970: exp)
+}
+
+private func chatGPTAccountId(from token: String) -> String? {
+    let parts = token.split(separator: ".", omittingEmptySubsequences: false)
+    guard parts.count == 3 else { return nil }
+    var base64 = String(parts[1])
+        .replacingOccurrences(of: "-", with: "+")
+        .replacingOccurrences(of: "_", with: "/")
+    let remainder = base64.count % 4
+    if remainder != 0 { base64 += String(repeating: "=", count: 4 - remainder) }
+    guard let data = Data(base64Encoded: base64),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let auth = json["https://api.openai.com/auth"] as? [String: Any],
+          let accountId = auth["chatgpt_account_id"] as? String,
+          !accountId.isEmpty else { return nil }
+    return accountId
 }
 
 private extension Decimal {
@@ -545,8 +643,9 @@ extension CodexAPIService: UsageProvider {
     var providerType: ProviderType { .codex }
 
     func cancelAllRequests() {
-        activeTasks.forEach { $0.cancel() }
-        activeTasks.removeAll()
-        Logger.api.debug("Codex: 已取消所有网络请求")
+        session.getAllTasks { tasks in
+            tasks.forEach { $0.cancel() }
+            Logger.api.debug("Codex: 已取消 \(tasks.count) 个网络请求")
+        }
     }
 }

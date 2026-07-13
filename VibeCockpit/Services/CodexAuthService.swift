@@ -30,6 +30,10 @@ final class CodexAuthService {
     private var oauthRefreshInFlightToken: String?
     private var oauthRefreshWaiters: [(Result<String, Error>) -> Void] = []
 
+    /// 旧 session-token 账户同样可能被用量轮询和唤醒并发读取；合并请求可避免
+    /// 同一 Cookie 同时换取多个 access token，从而降低偶发 401 / Cloudflare 挑战概率。
+    private var sessionRefreshWaiters: [String: [(Result<String, Error>) -> Void]] = [:]
+
     private var hasCachedValidToken: Bool {
         cacheLock.lock()
         defer { cacheLock.unlock() }
@@ -95,11 +99,35 @@ final class CodexAuthService {
             return
         }
 
-        fetchAccessTokenViaSession(sessionToken: sessionToken, completion: completion)
+        fetchAccessTokenViaSessionSingleFlight(sessionToken: sessionToken, completion: completion)
     }
 
     static func isOAuthRefreshToken(_ credential: String) -> Bool {
         credential.hasPrefix("rt.")
+    }
+
+    private func fetchAccessTokenViaSessionSingleFlight(
+        sessionToken: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        cacheLock.lock()
+        if sessionRefreshWaiters[sessionToken] != nil {
+            sessionRefreshWaiters[sessionToken, default: []].append(completion)
+            cacheLock.unlock()
+            return
+        }
+        sessionRefreshWaiters[sessionToken] = [completion]
+        cacheLock.unlock()
+
+        fetchAccessTokenViaSession(sessionToken: sessionToken) { [weak self] result in
+            guard let self else { return }
+
+            self.cacheLock.lock()
+            let waiters = self.sessionRefreshWaiters.removeValue(forKey: sessionToken) ?? []
+            self.cacheLock.unlock()
+
+            waiters.forEach { $0(result) }
+        }
     }
 
     private func cachedTokenFallback(for sessionToken: String) -> String? {
@@ -239,6 +267,11 @@ final class CodexAuthService {
                     Logger.api.notice("Codex OAuth: refresh_token 已轮换，静默写回")
                     DispatchQueue.main.async {
                         UserSettings.shared.silentlyUpdateCurrentCodexSessionToken(newRefresh)
+                    }
+                }
+                if let accountId = tokens.accountId, !accountId.isEmpty {
+                    DispatchQueue.main.async {
+                        UserSettings.shared.silentlyUpdateCurrentCodexRemoteAccountId(accountId)
                     }
                 }
 
