@@ -46,6 +46,18 @@ The SwiftPM manifest is kept lightweight for pure-function checks:
 swift run VibeCockpitCoreChecks
 ```
 
+To create a local DMG without installing any extra packaging tool:
+
+```sh
+./scripts/package.sh
+```
+
+The script asks for the release version, updates `MARKETING_VERSION` in the Xcode
+project, and writes the app, DMG, and detailed build log to
+`build/VibeCockpit-Release-<version>/`. It only prints key milestones in the
+terminal. It uses an ad-hoc signature by default; set `CODE_SIGN_IDENTITY` to use
+a locally installed signing certificate.
+
 ## Repository
 
 GitHub: [HZ-CaiBadou/VibeCockpit](https://github.com/HZ-CaiBadou/VibeCockpit)

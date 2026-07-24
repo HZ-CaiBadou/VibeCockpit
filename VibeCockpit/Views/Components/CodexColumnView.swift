@@ -109,7 +109,9 @@ struct CodexColumnView: View {
                             Circle()
                                 .trim(from: secondaryRange.from, to: secondaryRange.to)
                                 .stroke(
-                                    UsageColorScheme.codexSecondaryColorSwiftUI(secondary.percentage),
+                                    UsageColorScheme.codexRemainingStatusColorSwiftUI(
+                                        forUsedPercentage: secondary.percentage
+                                    ),
                                     style: StrokeStyle(lineWidth: 3, lineCap: .round)
                                 )
                                 .frame(width: 114, height: 114)
@@ -171,10 +173,7 @@ struct CodexColumnView: View {
     }
 
     private func primaryRingColor(for percentage: Double) -> Color {
-        if primaryRingType == .codexSecondary {
-            return UsageColorScheme.codexSecondaryColorSwiftUI(percentage)
-        }
-        return UsageColorScheme.codexPrimaryColorSwiftUI(percentage)
+        UsageColorScheme.codexRemainingStatusColorSwiftUI(forUsedPercentage: percentage)
     }
 
     // MARK: - Loading Animations

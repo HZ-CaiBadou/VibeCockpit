@@ -95,7 +95,7 @@
 
 // MARK: - Settings - About
 "settings.about.version" = "版本 %@";
-"settings.about.description" = "監控 Codex 用量，並可自動喚醒 Codex";
+"settings.about.description" = "在選單列監控 Codex 用量";
 "settings.about.developer" = "開發者";
 "settings.about.license" = "授權條款";
 "settings.about.license_value" = "MIT License";
@@ -336,6 +336,7 @@
 "usage_data.compact_remaining_hours" = "還剩 %d小時%d分鐘";
 "usage_data.compact_remaining_days" = "還剩 %d天%d小時";
 "usage_data.compact_remaining_days_with_minutes" = "還剩 %d天%d小時%d分";
+"usage_data.next_refresh" = "下次重新整理：%@";
 
 // MARK: - Extra Usage
 "extra_usage.not_enabled" = "未啟用";
@@ -393,7 +394,7 @@
 "notification.section" = "通知";
 "notification.hint" = "用量達到閾值或重設時發送通知";
 "notification.enable" = "啟用用量通知";
-"notification.description" = "當任意限制達到 90%%，或用量重設時，發送系統通知。";
+"notification.description" = "當任意限制達到 90%，或用量重設時，發送系統通知。";
 "notification.warning_title" = "用量警告";
 "notification.warning_body" = "%@ 已達到 %d%% 用量";
 "notification.reset_title" = "用量已重設";

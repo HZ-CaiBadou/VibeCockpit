@@ -9,7 +9,7 @@
 import SwiftUI
 
 /// 设置视图
-/// 使用 Toolbar 风格布局，包含通用设置、认证信息、自动唤醒和关于标签页
+/// 使用 Toolbar 风格布局，包含通用设置、认证信息和关于标签页
 struct SettingsView: View {
     @ObservedObject private var settings = UserSettings.shared
     @State private var selectedTab: Int
@@ -17,7 +17,8 @@ struct SettingsView: View {
     @StateObject private var localization = LocalizationManager.shared
 
     init(initialTab: Int = 0) {
-        _selectedTab = State(initialValue: initialTab)
+        let visibleInitialTab = initialTab == 3 ? 2 : min(max(initialTab, 0), 2)
+        _selectedTab = State(initialValue: visibleInitialTab)
     }
 
     var body: some View {
@@ -48,25 +49,28 @@ struct SettingsView: View {
                 // 分隔符
                 TabDivider()
 
-                // 自动唤醒按钮
-                ToolbarButton(
-                    icon: "alarm",
-                    title: L.SettingsTab.wakeup,
-                    isSelected: selectedTab == 2
-                ) {
-                    selectedTab = 2
-                }
+                /*
+                 自动唤醒入口暂时隐藏，代码保留便于后续恢复。
+                 恢复时需要把 About 按钮/内容页索引调回 3，并取消下面这段注释。
+                 ToolbarButton(
+                     icon: "alarm",
+                     title: L.SettingsTab.wakeup,
+                     isSelected: selectedTab == 2
+                 ) {
+                     selectedTab = 2
+                 }
 
-                // 分隔符
-                TabDivider()
+                 // 分隔符
+                 TabDivider()
+                 */
 
                 // 关于按钮
                 ToolbarButton(
                     icon: "info.circle",
                     title: L.SettingsTab.about,
-                    isSelected: selectedTab == 3
+                    isSelected: selectedTab == 2
                 ) {
-                    selectedTab = 3
+                    selectedTab = 2
                 }
             }
             .padding(.horizontal)
@@ -84,9 +88,12 @@ struct SettingsView: View {
                 case 1:
                     AuthSettingsView()
                 case 2:
-                    WakeupSettingsView()
-                case 3:
                     AboutView()
+                    /*
+                     自动唤醒设置页暂时隐藏，代码保留便于后续恢复。
+                     恢复时把 AboutView 调回 case 3，并取消下面这段注释。
+                     WakeupSettingsView()
+                     */
                 default:
                     GeneralSettingsView()
                 }

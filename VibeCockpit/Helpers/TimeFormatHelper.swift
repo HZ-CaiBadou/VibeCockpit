@@ -166,6 +166,26 @@ enum TimeFormatHelper {
         return "\(dateString) \(timeString)"
     }
 
+    /// 格式化完整日期时间（精确到秒）
+    /// - Parameter date: 要格式化的日期
+    /// - Returns: 如 "2026年7月16日 14:58:03" 或 "2026-07-16 14:58:03"
+    static func formatFullDateTimeWithSeconds(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = UserSettings.shared.appLocale
+        formatter.timeZone = TimeZone.current
+
+        let langCode = UserSettings.shared.appLocale.identifier
+        if langCode.hasPrefix("zh") || langCode.hasPrefix("ja") {
+            formatter.dateFormat = "yyyy年M月d日 HH:mm:ss"
+        } else if langCode.hasPrefix("ko") {
+            formatter.dateFormat = "yyyy년 M월 d일 HH:mm:ss"
+        } else {
+            formatter.dateFormat = uses24HourFormat ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd h:mm:ss a"
+        }
+
+        return formatter.string(from: date)
+    }
+
     // MARK: - Detection
 
     /// 检测当前是否应该使用 24 小时格式

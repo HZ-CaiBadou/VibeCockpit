@@ -445,7 +445,7 @@ class MenuBarManager: ObservableObject {
     }
 
     @objc func openAbout() {
-        openSettingsWindow(tab: 3)
+        openSettingsWindow(tab: 2)
     }
 
     /// 切换账户
@@ -500,7 +500,7 @@ class MenuBarManager: ObservableObject {
     }
 
     /// 打开设置窗口
-    /// - Parameter tab: 要显示的标签页索引 (0: 通用, 1: 认证, 2: 关于)
+    /// - Parameter tab: 要显示的标签页索引 (0: 通用, 1: 认证, 2: 关于；自动唤醒入口暂时隐藏)
     private func openSettingsWindow(tab: Int) {
         if settingsWindow == nil {
             // 切换为 regular 模式，使应用显示在 Dock 中

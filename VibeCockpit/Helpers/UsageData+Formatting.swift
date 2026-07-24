@@ -217,6 +217,15 @@ extension UsageData.LimitData {
 
         return L.UsageData.compactRemainingDaysWithMinutes(days, hours, remainingMinutes)
     }
+
+    /// Codex 用量行的下一次刷新时间（完整日期时间，精确到秒）
+    var formattedNextRefreshDateTime: String {
+        guard let resetsAt = resetsAt else {
+            return "-"
+        }
+
+        return TimeFormatHelper.formatFullDateTimeWithSeconds(resetsAt)
+    }
 }
 
 // MARK: - UsageData formatting (backward-compat shims)

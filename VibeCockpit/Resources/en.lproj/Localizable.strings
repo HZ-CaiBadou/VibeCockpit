@@ -96,7 +96,7 @@
 
 // MARK: - Settings - About
 "settings.about.version" = "Version %@";
-"settings.about.description" = "Monitor Codex usage, with optional Codex wakeup";
+"settings.about.description" = "Monitor Codex usage from your menu bar";
 "settings.about.developer" = "Developer";
 "settings.about.license" = "License";
 "settings.about.license_value" = "MIT License";
@@ -337,6 +337,7 @@
 "usage_data.compact_remaining_hours" = "%dh %dm left";
 "usage_data.compact_remaining_days" = "%dd %dh left";
 "usage_data.compact_remaining_days_with_minutes" = "%dd %dh %dm left";
+"usage_data.next_refresh" = "Next refresh: %@";
 
 // MARK: - Extra Usage
 "extra_usage.not_enabled" = "Not Enabled";
@@ -394,7 +395,7 @@
 "notification.section" = "Notifications";
 "notification.hint" = "Get notified when usage reaches threshold or resets";
 "notification.enable" = "Enable Usage Notifications";
-"notification.description" = "Receive a notification when any limit reaches 90%%, or when usage resets.";
+"notification.description" = "Receive a notification when any limit reaches 90%, or when usage resets.";
 "notification.warning_title" = "Usage Warning";
 "notification.warning_body" = "%@ has reached %d%% usage";
 "notification.reset_title" = "Usage Reset";

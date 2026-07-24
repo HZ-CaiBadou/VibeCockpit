@@ -269,33 +269,48 @@ class DataRefreshManager: ObservableObject {
     }
 
     private func startCodexWakeup() {
+        /*
+         自动唤醒功能暂时隐藏/停用，保留原启动逻辑便于后续恢复。
         Task { @MainActor in
             CodexWakeupManager.shared.start()
         }
+         */
     }
 
     private func stopCodexWakeup() {
+        /*
+         自动唤醒功能暂时隐藏/停用，保留原停止逻辑便于后续恢复。
         Task { @MainActor in
             CodexWakeupManager.shared.stop()
         }
+         */
     }
 
     private func clearCodexWakeupUsage() {
+        /*
+         自动唤醒功能暂时隐藏/停用，保留原清理逻辑便于后续恢复。
         Task { @MainActor in
             CodexWakeupManager.shared.clearCodexUsage()
         }
+         */
     }
 
     private func updateCodexWakeupUsage(_ data: CodexUsageData) {
+        /*
+         自动唤醒功能暂时隐藏/停用，保留原用量同步逻辑便于后续恢复。
         Task { @MainActor in
             CodexWakeupManager.shared.updateCodexUsage(data)
         }
+         */
     }
 
     private func handleCodexWakeupAccountChanged() {
+        /*
+         自动唤醒功能暂时隐藏/停用，保留原账户切换逻辑便于后续恢复。
         Task { @MainActor in
             CodexWakeupManager.shared.handleAccountChanged()
         }
+         */
     }
 
     private func monitoringUtilization(for codex: CodexUsageData) -> Double? {

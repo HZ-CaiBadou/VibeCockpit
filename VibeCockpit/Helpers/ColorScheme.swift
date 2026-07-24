@@ -250,6 +250,49 @@ enum UsageColorScheme {
         }
     }
 
+    // MARK: - Codex 剩余量状态配色（绿 → 黄 → 粉 → 深红）
+
+    /// 根据 Codex 剩余百分比返回状态颜色。
+    /// 100–80% 绿色、60–79% 黄色、20–59% 粉红色、0–19% 深红色。
+    private static func codexRemainingStatusBaseColor(_ remainingPercentage: Double) -> NSColor {
+        let remaining = UsageDisplayMath.clampedPercentage(remainingPercentage)
+
+        if remaining >= 80 {
+            return NSColor(red: 45/255.0, green: 212/255.0, blue: 191/255.0, alpha: 1.0)  // #2DD4BF
+        } else if remaining >= 60 {
+            return NSColor(red: 250/255.0, green: 204/255.0, blue: 21/255.0, alpha: 1.0)  // #FACC15
+        } else if remaining >= 20 {
+            return NSColor(red: 244/255.0, green: 114/255.0, blue: 182/255.0, alpha: 1.0) // #F472B6
+        } else {
+            return NSColor(red: 153/255.0, green: 27/255.0, blue: 27/255.0, alpha: 1.0)   // #991B1B
+        }
+    }
+
+    /// 根据 API 返回的已用百分比，按剩余百分比返回 SwiftUI 状态颜色。
+    static func codexRemainingStatusColorSwiftUI(
+        forUsedPercentage usedPercentage: Double,
+        opacity: Double = 0.9
+    ) -> Color {
+        let remaining = UsageDisplayMath.displayPercentage(
+            usedPercentage: usedPercentage,
+            displayMode: .remaining
+        )
+        return Color(nsColor: codexRemainingStatusBaseColor(remaining)).opacity(opacity)
+    }
+
+    /// 根据 API 返回的已用百分比，按剩余百分比返回菜单栏状态颜色。
+    static func codexRemainingStatusColorAdaptive(
+        forUsedPercentage usedPercentage: Double,
+        for statusButton: NSStatusBarButton? = nil
+    ) -> NSColor {
+        let remaining = UsageDisplayMath.displayPercentage(
+            usedPercentage: usedPercentage,
+            displayMode: .remaining
+        )
+        let baseColor = codexRemainingStatusBaseColor(remaining)
+        return isDarkMode(for: statusButton) ? baseColor.adjustedForDarkMode() : baseColor
+    }
+
     // MARK: - Codex Secondary 配色（天空蓝 → 蓝 → 深蓝，虚线圆形）
 
     /// 根据 Codex secondary 使用百分比返回 NSColor

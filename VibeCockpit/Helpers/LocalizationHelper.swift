@@ -336,6 +336,9 @@ enum L {
         static func compactRemainingDaysWithMinutes(_ days: Int, _ hours: Int, _ minutes: Int) -> String {
             String(format: localized("usage_data.compact_remaining_days_with_minutes"), days, hours, minutes)
         }
+        static func nextRefresh(_ dateTime: String) -> String {
+            String(format: localized("usage_data.next_refresh"), dateTime)
+        }
     }
 
     // MARK: - Error Messages

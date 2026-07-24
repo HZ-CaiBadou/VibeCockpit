@@ -615,14 +615,14 @@ class MenuBarIconRenderer {
             if isMonochrome {
                 return createCircleTemplateImage(percentage: percentage, displayPercentage: displayPercentage, size: NSSize(width: metricCircleIconSize, height: metricCircleIconSize), button: button, removeBackground: true)
             }
-            let color = UsageColorScheme.codexPrimaryColorAdaptive(percentage, for: button)
+            let color = UsageColorScheme.codexRemainingStatusColorAdaptive(forUsedPercentage: percentage, for: button)
             return createCircleImage(percentage: percentage, displayPercentage: displayPercentage, size: NSSize(width: metricCircleIconSize, height: metricCircleIconSize), colorOverride: color, button: button, removeBackground: removeBackground)
 
         case .codexSecondary:
             if isMonochrome {
                 return createCircleTemplateImage(percentage: percentage, displayPercentage: displayPercentage, size: NSSize(width: metricCircleIconSize, height: metricCircleIconSize), useSevenDayStyle: true, button: button, removeBackground: true)
             }
-            let color = UsageColorScheme.codexSecondaryColorAdaptive(percentage, for: button)
+            let color = UsageColorScheme.codexRemainingStatusColorAdaptive(forUsedPercentage: percentage, for: button)
             return createCircleImage(percentage: percentage, displayPercentage: displayPercentage, size: NSSize(width: metricCircleIconSize, height: metricCircleIconSize), colorOverride: color, useDashedStyle: true, button: button, removeBackground: removeBackground)
 
         case .codexExtraUsage:

@@ -221,10 +221,12 @@ struct UnifiedLimitRow: View {
 
             // 右侧：重置时间或剩余额度
             Text(displayValue)
-                .font(.system(size: 12))
+                .font(.system(size: valueFontSize))
                 .fontWeight(.medium)
                 .lineLimit(1)
-                .minimumScaleFactor(0.9)
+                .minimumScaleFactor(isCodexResetLimit ? 0.75 : 0.9)
+                // 完整刷新时间比左侧窗口名称优先展示，避免在菜单弹窗中被截断。
+                .layoutPriority(isCodexResetLimit ? 1 : 0)
                 .id(showRemainingMode ? "remaining" : "reset")  // 强制识别为不同视图
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
@@ -258,6 +260,14 @@ struct UnifiedLimitRow: View {
         }
     }
 
+    private var isCodexResetLimit: Bool {
+        type == .codexPrimary || type == .codexSecondary
+    }
+
+    private var valueFontSize: CGFloat {
+        isCodexResetLimit ? 11 : 12
+    }
+
     private var iconColor: Color {
         switch type {
         case .fiveHour:
@@ -271,9 +281,11 @@ struct UnifiedLimitRow: View {
         case .extraUsage:
             return .pink
         case .codexPrimary:
-            return Color(red: 45/255.0, green: 212/255.0, blue: 191/255.0)   // #2DD4BF
+            guard let percentage = codexData?.primary?.percentage else { return .gray }
+            return UsageColorScheme.codexRemainingStatusColorSwiftUI(forUsedPercentage: percentage)
         case .codexSecondary:
-            return Color(red: 96/255.0, green: 165/255.0, blue: 250/255.0)   // #60A5FA
+            guard let percentage = codexData?.secondary?.percentage else { return .gray }
+            return UsageColorScheme.codexRemainingStatusColorSwiftUI(forUsedPercentage: percentage)
         case .codexExtraUsage:
             return Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0)    // #F59E0B
         }
@@ -316,11 +328,11 @@ struct UnifiedLimitRow: View {
 
         case .codexPrimary:
             guard let limitData = codexData?.primary?.asUsageLimitData() else { return "-" }
-            return showRemainingMode ? limitData.formattedCompactRemaining : detailCompactResetTime(limitData)
+            return limitData.formattedNextRefreshDateTime
 
         case .codexSecondary:
             guard let limitData = codexData?.secondary?.asUsageLimitData() else { return "-" }
-            return showRemainingMode ? limitData.formattedCompactRemainingWithMinutes : limitData.formattedCompactResetDateWithMinutes
+            return limitData.formattedNextRefreshDateTime
 
         case .codexExtraUsage:
             guard let extra = codexData?.extraUsage else { return "-" }
